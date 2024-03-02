@@ -235,12 +235,8 @@ class ColumnWidget(QWidget):
         sheet_name = self.parent_tab.sheet_name
         if file_name != None and file_path!= None and  len(self.result_tab)>0:
             try:
-                uri = "bolt://localhost:7687/test"
-                user = "neo4j"
-                password = "LogisticData"
-
                 connector = Neo4jConnector()
-                connector.connect(uri, user, password)
+                connector.connect()
                 print("*********", sheet_name)
                 connector.store_in_db(file_name=file_name, file_path=file_path, results_df=self.result_tab, sheet_name=sheet_name)
                 connector.close()
