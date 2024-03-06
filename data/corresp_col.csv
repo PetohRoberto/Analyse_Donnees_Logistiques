@@ -1,0 +1,8 @@
+source1;table1;column1;source2;table2;column2
+estat_isoc_eb_ics_en.csv;estat_isoc_eb_ics_en;geo;DataCoSupplyChainDataset.csv;DataCoSupplyChainDataset;Order Country
+DataCoSupplyChainDataset.csv;DataCoSupplyChainDataset;Customer Id;Supply chain logisitcs problem.xlsx;OrderList;Customer
+DataCoSupplyChainDataset.csv;DataCoSupplyChainDataset;Days for shipment(scheduled);Supply chain logisitcs problem.xlsx;OrderList;Ship ahead day count
+DataCoSupplyChainDataset;DataCoSupplyChainDataset;Days for shipping(real);Supply chain logisitcs problem.xlsx;OrderList;Ship Late Day count
+DataCoSupplyChainDataset.csv;DataCoSupplyChainDataset;order date(DateOrders);Supply chain logisitcs problem.xlsx;OrderList;Order Date
+DataCoSupplyChainDataset.csv;DataCoSupplyChainDataset;Order Id;Supply chain logisitcs problem.xlsx;OrderList;Order ID
+DataCoSupplyChainDataset.csv;DataCoSupplyChainDataset;Product Card Id;Supply chain logisitcs problem.xlsx;OrderList;Product ID

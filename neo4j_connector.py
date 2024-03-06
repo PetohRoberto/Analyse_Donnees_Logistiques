@@ -4,6 +4,7 @@ from neo4j import GraphDatabase
 from datetime import datetime
 import pandas as pd
 from PyQt5.QtWidgets import QFileDialog
+import numpy as np
 
 
 class Neo4jConnector:
@@ -11,27 +12,7 @@ class Neo4jConnector:
     def __init__(self):
         self._driver = None
 
-        self.make_joins_query = ()
-        self.sim_column_query = ("""
-
-
-            MATCH (s1:Source)-[:POSSEDE]->(t1:Table)-[:CONTIENT]->(c1:Colonne)-[:EFFECTUE]->(a1:Analyse)
-            MATCH (s2:Source)-[:POSSEDE]->(t2:Table)-[:CONTIENT]->(c2:Colonne)-[:EFFECTUE]->(a2:Analyse)
-            WHERE toLower(c1.nom) = toLower(c2.nom) AND s1 < s2  
-                                 
-            MERGE (t1)-[:LIE]->(integre:INTEGRATION{type:$type_integration})<-[:LIE]-(t2)
-            MERGE (c1)-[:CORRESPOND]->(integre)<-[:CORRESPOND]-(c2)
-            SET c1.table_provenance = t1.nom
-            SET c2.table_provenance = t2.nom
-                                 
-            WITH s1, t1, c1, a1, s2, t2, c2, a2, integre
-            MATCH (t1)-[contient1:CONTIENT]->(c1)
-            MATCH (t2)-[contient2:CONTIENT]->(c2)
-            DELETE contient1, contient2
-
-            RETURN s1, t1, a1, s2, t2, a2, integre, COUNT(c1.nom) AS total
-                """)
-        
+        self.corresp_df = None
 
     def close(self):
          if self._driver is not None:
@@ -42,24 +23,6 @@ class Neo4jConnector:
         user = "neo4j"
         password = "LogisticData"
         self._driver = GraphDatabase.driver(uri, auth=(user, password))
-
-    def get_similar_columns(self):
-        # type_integration = "integration par nom"
-        print("get sim by names ...")
-        query = """
-            MATCH (s1:Source)-[:POSSEDE]->(t1:Table)-[:CONTIENT]->(c1:Colonne)-[:EFFECTUE]->(a1:Analyse)
-            MATCH (s2:Source)-[:POSSEDE]->(t2:Table)-[:CONTIENT]->(c2:Colonne)-[:EFFECTUE]->(a2:Analyse)
-            WHERE toLower(c1.nom) = toLower(c2.nom) AND s1 < s2
-
-            RETURN s1.chemin, t1.nom, s2.chemin, t2.nom, c1.com AS colonne_similaire
-        """
-        with self._driver.session() as session:
-                # Begin a transaction
-                with session.begin_transaction() as tx:
-                    result = tx.run(query)
-                    records = list(result)
-                    #total = len(record['total'] for record in records) if records else 0
-        return records
                     
                     
     def store_in_db(self, file_name, file_path, results_df, sheet_name=None):
@@ -149,7 +112,6 @@ class Neo4jConnector:
                         f"SET p.date_maj= $date_maj"
                     )
                     tx.run(stocke_query, source_name=source, file_path=file_path, table_name=table, source_profilage=source, date_maj=datetime.now().strftime("%d/%m/%Y_%H:%M:%S"))
-            self.make_joins()
 
 
     def store_analysis(self, result_df, sheet_name=None):
@@ -188,32 +150,125 @@ class Neo4jConnector:
                     source_query = source_query.rstrip(', ')
                 tx.run(source_query, source_name=chemin_source, file_path=chemin_source, table=table_name)
 
-    def make_joins(self):
-        column_query = """
-            MATCH (s1:Source)-[:POSSEDE]->(t1:Table)-[:CONTIENT]->(c1:Colonne)
-            MATCH (s2:Source)-[:POSSEDE]->(t2:Table)-[:CONTIENT]->(c2:Colonne)
-            WHERE s1=s2 AND c1.nom = c2.nom AND t1 < t2
-
-            MERGE (c1)-[:UNI]-(c2)
-        """
-        with self._driver.session() as session:
-                with session.begin_transaction() as tx:
-                    (tx.run(column_query))
 
 
+    def count_pairs(self, df):
+        group_columns = ['source1', 'table1', 'table2', 'source2'] # 'source1', 'table1', 'column1', 'source2', 'table2'
+        
+        # Vérifiez si toutes les colonnes de regroupement existent dans le DataFrame
+        if all(col in df.columns for col in group_columns):
+            count_table_pairs = df.groupby(group_columns).size().reset_index(name='count')
+            count_table_pairs['sorted_tables'] = np.sort(count_table_pairs[group_columns], axis=1).tolist()
+
+            count_table_pairs['sorted_tables'] = count_table_pairs['sorted_tables'].apply('--'.join)
+            final_count_table_pairs = count_table_pairs.groupby(['sorted_tables']).agg({'count': 'sum'}).reset_index()
+
+            return final_count_table_pairs
+        else:
+            print("Certaines colonnes de regroupement n'existent pas dans le DataFrame.")
+            return None
 
 
-    def integrate_tables(self, parent):
+    def analyse_for_integration(self, parent):
+        total_results = []
         similar_columns = self.get_similar_columns()
-        print(similar_columns)
+        similar_name_df = pd.DataFrame([dict(record) for record in similar_columns])
+        sim_name_pairs = self.count_pairs(similar_name_df) 
+        total_results.append(sim_name_pairs)  
+
 
         corresponding_columns_df = self.get_correspond_columns(parent) 
-        corresponding_columns_df.head()
+        if corresponding_columns_df is not None:
+            self.corresp_df = corresponding_columns_df
+            corresp_pairs = self.count_pairs(corresponding_columns_df)
+            total_results.append(corresp_pairs)
+        else:
+             print("table de correspondace nulle")
+
 
         similar_columns_by_analysis = self.get_similar_col_by_analysis()
-        print(similar_columns_by_analysis)
+        sim_analysis_df = pd.DataFrame([dict(record) for record in similar_columns_by_analysis])
+        print(sim_analysis_df)
+        sim_analysis_pairs = self.count_pairs(sim_analysis_df)
+        total_results.append(sim_analysis_pairs)
 
 
+        # Concaténer les résultats de chaque DataFrame
+        total_results = pd.concat(total_results, ignore_index=True)
+
+        # Grouper le DataFrame résultant par les tables triées et effectuer la somme
+        final_total_count = total_results.groupby('sorted_tables').agg({'count': 'sum'}).reset_index()
+        final_total_count = final_total_count.rename(columns={'sorted_tables': 'table_pair'})
+
+        return final_total_count
+
+    @staticmethod
+    def compare_tuple(row, mon_tuple):
+        return all(elem in row.values for elem in mon_tuple)
+    
+    def integrate_tables(self, parent):
+        statut = []
+        total_pairs = self.analyse_for_integration(parent)
+        for pair, count in zip(total_pairs['table_pair'], total_pairs['count']):
+            if count < 2:
+                statut.append("pas intégré")
+            else:
+                statut.append("intégré")
+                print(pair, count)
+                s1, t1, t2, s2 = pair.split('--')
+                
+                query_name_analyse = """
+                    MATCH (s1:Source{nom: $source1})-[:POSSEDE]->(t1:Table{nom: $table1})-[:CONTIENT]->(c1:Colonne)-[:EFFECTUE]->(a1:Analyse)
+                    MATCH (s2:Source{nom: $source2})-[:POSSEDE]->(t2:Table{nom : $table2})-[:CONTIENT]->(c2:Colonne)-[:EFFECTUE]->(a2:Analyse)
+                    WHERE (toLower(c1.nom) = toLower(c2.nom) AND s1 < s2) OR (a1 <> a2 AND a1.`Valeur la plus fréquente` = a2.`Valeur la plus fréquente` AND
+                                a1.`Valeurs distinctes` = a2.`Valeurs distinctes`  AND s1 <> s2)
+
+                    MERGE (t1)-[:INTEGRE]-(t2)
+                    MERGE (c1)-[:CORRESPOND]-(c2)
+                    """
+
+                correspond_df = self.corresp_df
+                tuple_cherche = pair.split('--')
+                result = correspond_df[correspond_df.apply(self.compare_tuple, axis=1, mon_tuple=tuple_cherche)]
+                for _, res in result.iterrows():
+                    c1 = res['column1']
+                    c2 = res['column2']
+
+                    query_table_corr = """"
+                        MATCH (s1:Source{nom: $source1})-[:POSSEDE]->(t1:Table{nom: $table1})-[:CONTIENT]->(c1:Colonne{nom: $colonne1})
+                        MATCH (s2:Source{nom: $source2})-[:POSSEDE]->(t2:Table{nom : $table2})-[:CONTIENT]->(c2:Colonne{nom: $colonne2})
+
+                        MERGE (t1)-[:INTEGRE]-(t2)
+                        MERGE (c1)-[:CORRESPOND]-(c2)
+                    """
+
+                    with self._driver.session() as session:
+                    # Begin a transaction
+                        with session.begin_transaction() as tx:
+                            tx.run(query_name_analyse, source1=s1, source2=s2, table1=t1, table2=t2)
+                            tx.run(query_table_corr, source1=s1, source2=s2, table1=t1, table2=t2, colonne1=c1, colonne2=c2)
+                            
+
+        return (total_pairs, statut)
+
+    def get_similar_columns(self):
+        # type_integration = "integration par nom"
+        print("get sim by names ...")
+        query = """
+            MATCH (s1:Source)-[:POSSEDE]->(t1:Table)-[:CONTIENT]->(c1:Colonne)-[:EFFECTUE]->(a1:Analyse)
+            MATCH (s2:Source)-[:POSSEDE]->(t2:Table)-[:CONTIENT]->(c2:Colonne)-[:EFFECTUE]->(a2:Analyse)
+            WHERE toLower(c1.nom) = toLower(c2.nom) AND s1 < s2
+            
+            RETURN s1.chemin as source1, t1.nom as table1, s2.chemin as source2, t2.nom as table2, c1.com AS colonne_similaire
+        """
+        # source1', 'table1', 'table2', 'source2
+        with self._driver.session() as session:
+                # Begin a transaction
+                with session.begin_transaction() as tx:
+                    result = tx.run(query)
+                    records = list(result)
+                
+                    return records
 
     def get_correspond_columns(self, parent):
         # Chemin vers votre fichier CSV
@@ -227,53 +282,15 @@ class Neo4jConnector:
                 # Charger les données du fichier en utilisant pandas
                 if file_path.lower().endswith('.csv'):
                     try:
-                        df_correspond = pd.read_csv(file_path, encoding='utf-8')
+                        df_correspond = pd.read_csv(file_path, encoding='utf-8', sep=';')
                     except UnicodeDecodeError:
-                        df_correspond = pd.read_csv(file_path, encoding='ISO-8859-1')
-                    
-                    # for _, row in df_correspond.iterrows():
-                    #     source1 = row['source1']
-                    #     column1 = row['column1']
-                    #     source2 = row['source2']
-                    #     column2 = row['column2']
+                        df_correspond = pd.read_csv(file_path, encoding='ISO-8859-1', sep=';')
 
-                    # type_integration="integration par table de correspondance"
                     return df_correspond
             
             except Exception as e:
                 # Gérer les erreurs lors du chargement du fichier
                 return(str(e))
-
-    def corres(self):
-                    # Créer un lien entre la source et la colonne dans Neo4j
-                    with self._driver.session() as session:
-                        with session.begin_transaction() as tx:
-                            query =  """
-                                MATCH (s1:Source {nom: $source1})-[:POSSEDE]->(t1:Table)-[:CONTIENT]->(c1:Colonne {nom: $column1})
-                                MATCH (s2:Source {nom: $source2})-[:POSSEDE]->(t2:Table)-[:CONTIENT]->(c2:Colonne {nom: $column2})
-
-                                WHERE s1 <> s2
-                                MERGE (t1)-[:LIE]->(integre:INTEGRATION{type:$type_integration})<-[:LIE]-(t2)
-                                MERGE (c1)-[:CORRESPOND]->(integre)<-[:CORRESPOND]-(c2)
-                                SET c1.table_provenance = t1.nom
-                                SET c2.table_provenance = t2.nom
-
-                                WITH s1, t1, c1, a1, s2, t2, c2, a2, integre
-                                MATCH (t1)-[contient1:CONTIENT]->(c1)
-                                MATCH (t2)-[contient2:CONTIENT]->(c2)
-                                DELETE contient1, contient2
-
-                                RETURN s1, t1, a1, s2, t2, a2, integre, COUNT(c1.nom) AS total
-                                """
-                    
-                            result = tx.run((query), source1=source1, column1=column1, source2=source2, column2=column2, type_integration=type_integration)
-                            records = list(result)
-                            total = sum(record['total'] for record in records) if records else 0
-
-
-                    print("Integration par correspondance finie")
-                    print(f"Total de {total} paire(s) de clonnes intégrées")
-                    return total
 
     
     def get_similar_col_by_analysis(self):
@@ -286,42 +303,22 @@ class Neo4jConnector:
                     MATCH (s2:Source)-[:POSSEDE]->(t2:Table)-[:CONTIENT]->(c2:Colonne)-[:EFFECTUE]->(a2:Analyse)
                     WHERE a1 <> a2 AND a1.`Valeur la plus fréquente` = a2.`Valeur la plus fréquente` AND
                                 a1.`Valeurs distinctes` = a2.`Valeurs distinctes`  AND s1 <> s2
-                    RETURN s1.chemin, t1.nom, s2.chemin, t2.nom, c1.com AS colonne_similaire
+                    RETURN s1.chemin as source1, t1.nom as table1, s2.chemin as source2, t2.nom as table2, c1.com AS colonne_similaire
                             """
                 results = tx.run(query)
 
                 return list(results)
 
-    def integrate_by_analysis_profiling(self):
-        type_integration = "integration par Analyse des profils"
-
+    def get_sources(self):
         with self._driver.session() as session:
-                with session.begin_transaction() as tx:
-                    
-                    profil_query = ("""
-                        MATCH (s1:Source)-[:POSSEDE]->(t1:Table)-[:CONTIENT]->(c1:Colonne)-[:EFFECTUE]->(a1:Analyse)
-                        MATCH (s2:Source)-[:POSSEDE]->(t2:Table)-[:CONTIENT]->(c2:Colonne)-[:EFFECTUE]->(a2:Analyse)
-                        WHERE a1 <> a2 AND a1.`Valeur la plus fréquente` = a2.`Valeur la plus fréquente` AND
-                                    a1.`Valeurs distinctes` = a2.`Valeurs distinctes`  AND s1 <> s2
+            with session.begin_transaction() as tx:
 
-                        MERGE (t1)-[:LIE]->(integre:INTEGRATION{type:$type_integration})<-[:LIE]-(t2)
-                        MERGE (c1)-[:CORRESPOND]->(integre)<-[:CORRESPOND]-(c2)
-                        SET c1.table_provenance = t1.nom
-                        SET c2.table_provenance = t2.nom
+                query = """
+                    MATCH (s:Source)-[:POSSEDE]->(t:Table)-[:CONTIENT]->(c:Colonne)
 
-                        WITH s1, t1, c1, a1, s2, t2, c2, a2, integre
-                        MATCH (t1)-[contient1:CONTIENT]->(c1)
-                        MATCH (t2)-[contient2:CONTIENT]->(c2)
-                        DELETE contient1, contient2
+                    RETURN s.chemin AS chemin_source, t.nom AS nom_table, COLLECT(c.nom) AS columns
+                """
 
-                        RETURN s1, t1, a1, s2, t2, a2, integre, COUNT(c1.nom) AS total
-                    """)
-                    result = tx.run((profil_query), type_integration = type_integration)
-                    #total = result.single()['total'] if result and result.single() else 0
+                result = tx.run(query)
 
-                    records = list(result)
-                    total = sum(record['total'] for record in records) if records else 0            
-
-        print("integration par Analyse profil terminée")
-        print(f"Total de {total} paire(s) de clonnes intégrées")
-        return total
+                return list(result)

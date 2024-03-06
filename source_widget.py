@@ -35,6 +35,7 @@ class SourceWidget(QWidget):
             """)
 
         # Stockez le nom de la colonne comme un attribut de l'instance
+        self.nom_source = os.path.basename(source['chemin_source'])
         self.source = source
         self.parent_tab = parent
         self.histogramme_checkbox = None
@@ -42,7 +43,7 @@ class SourceWidget(QWidget):
         self.layout = QVBoxLayout(self)
 
         # Bouton pour le nom de la colonne
-        source_label = QPushButton(source['name'])
+        source_label = QPushButton(self.nom_source)
         self.layout.addWidget(source_label)
 
         # Widget pour les sous-onglets
@@ -85,7 +86,7 @@ class SourceWidget(QWidget):
         self.layout.addWidget(self.pair_frequency_chart)
 
         # Analyse des paires de triplets et liste déroulante
-        self.triplet_frequency_plot = QCheckBox("Frequence des couple de valeurs")
+        self.triplet_frequency_plot = QCheckBox("Frequence des triplets de valeurs")
         self.layout.addWidget(self.triplet_frequency_plot)
         self.triplet_frequency_plot.stateChanged.connect(self.handle_operation_checkbox)
 
@@ -99,7 +100,7 @@ class SourceWidget(QWidget):
         self.col2_freq_triplet_plot.addItems(source['columns'])
         self.col3_freq_triplet_plot.addItems(source['columns'])
 
-        self.triplet_frequency_chart = QLabel()
+        self.triplet_frequency_chart = QLabel() # 
         self.layout.addWidget(self.triplet_frequency_chart)
 
 
@@ -137,9 +138,9 @@ class SourceWidget(QWidget):
     def handle_operation_checkbox(self, state):
         sender = self.sender()
         if state == Qt.Checked:
-            print(f"{sender.text()} sélectionné pour la source {self.source['name']}")
+            print(f"{sender.text()} sélectionné pour la source {self.nom_source}")
         else:
-            print(f"{sender.text()} désélectionné pour la source {self.source['name']}")
+            print(f"{sender.text()} désélectionné pour la source {self.nom_source}")
 
 
     def calculer(self):
@@ -151,7 +152,7 @@ class SourceWidget(QWidget):
             self.scatter_plot_chart.clear()
             column_x = self.col1_pairplot.currentText()
             column_y = self.col2_pairplot.currentText()
-            chart_path = self.create_scatter_plot_chart(source['path'], column_x, column_y)
+            chart_path = self.create_scatter_plot_chart(source['chemin_source'], column_x, column_y)
 
             result_texts.append(("scatter plot", chart_path))
 
@@ -159,7 +160,7 @@ class SourceWidget(QWidget):
             self.pair_frequency_chart.clear()
             column_x = self.col1_freq_pairplot.currentText()
             column_y = self.col2_freq_pairplot.currentText()
-            chart_path = self.create_frequency_pair_plot_chart(data_path=source['path'], x=column_x, y=column_y)
+            chart_path = self.create_frequency_pair_plot_chart(data_path=source['chemin_source'], x=column_x, y=column_y)
 
             result_texts.append(("pair frequency plot", chart_path))
 
@@ -168,23 +169,23 @@ class SourceWidget(QWidget):
             column_x = self.col1_freq_triplet_plot.currentText()
             column_y = self.col2_freq_triplet_plot.currentText()
             column_z = self.col3_freq_triplet_plot.currentText()
-            chart_path = self.create_frequency_triplet_plot_chart(data_path=source['path'], x=column_x, y=column_y, z=column_z)
+            chart_path = self.create_frequency_triplet_plot_chart(data_path=source['chemin_source'], x=column_x, y=column_y, z=column_z)
         
             result_texts.append(("triplet frequency plot", chart_path))
 
         if self.kmeans_clustering.isChecked():
             self.kmeans_histplot_chart.clear()
             self.kmeans_histplot_chart.clear()
-            result = self.create_kmeans_clustering_chart(source['path'], source['columns'])
+            result = self.create_kmeans_clustering_chart(source['chemin_source'], source['columns'])
             result_texts.append(("Kmeans", result))
 
         if self.hierarchical_clustering.isChecked():
             self.hierarchic_pairplot_chart.clear()
             self.hierarchic_dendogram_chart.clear()
-            results = self.create_hierarchical_clustering_chart(source['path'], source['columns'])
+            results = self.create_hierarchical_clustering_chart(source['chemin_source'], source['columns'])
             result_texts.append(("Hierarchical clustering", results))
 
-        self.result_tab.append([self.source['path'], result_texts])
+        self.result_tab.append([self.source['chemin_source'], result_texts])
 
         # Mettre à jour le DataFrame des résultats
         self.result_tab = pd.DataFrame(self.result_tab, columns=['chemin source', 'resultats'])
@@ -197,7 +198,10 @@ class SourceWidget(QWidget):
 
 
     def save_results(self):
-        
+        print("valeur : ", self.result_tab)
+        print("**************")
+        print("type : ",  type(self.result_tab))
+        print("............")
         if self.source != None and  len(self.result_tab)>0:
             try:
                 connector = Neo4jConnector()
@@ -207,7 +211,7 @@ class SourceWidget(QWidget):
 
                 # QMessageBox.information(None, "Success", "Data saved in Neo4j")
 
-                print("saved for : ", self.source['name'])
+                print("saved for : ", self.nom_source)
             except Exception as e:
                 # Gérer les erreurs lors du chargement du fichier
                 print(str(e))
@@ -223,17 +227,10 @@ class SourceWidget(QWidget):
                         data = pd.read_csv(file_path, encoding='utf-8')
                     except UnicodeDecodeError:
                         data = pd.read_csv(file_path, encoding='ISO-8859-1')
-                elif file_path.lower().endswith(('.xls', '.xlsx')):
-                    # Lire les noms des feuilles
-                    sheet_names = pd.ExcelFile(file_path).sheet_names
-                    selected_sheet, ok_pressed = QInputDialog.getItem(self, "Choisir une feuille", "Feuilles disponibles:", sheet_names, 0, False)
-                    
-                    if ok_pressed and selected_sheet:
-                        # Charger la feuille sélectionnée
-                        data = pd.read_excel(file_path, sheet_name=selected_sheet)
-                        self.sheet_name = selected_sheet
-                
-                data.head()
+                elif file_path.lower().endswith(('.xls', '.xlsx'))  and self.nom_source != self.source['nom_table']:
+                        data = pd.read_excel(file_path, sheet_name=self.source['nom_table'])
+                        self.sheet_name = self.source['nom_table']
+
                 return data
 
             except Exception as e:
@@ -247,7 +244,7 @@ class SourceWidget(QWidget):
         current_datetime = datetime.now().strftime("%Y%m%d_%H%M%S")
 
         # Définir le nom du fichier en fonction des colonnes, du type de graphique et de la date/heure
-        file_name = f"{chart}_{'_'.join(self.source['name'])}_{current_datetime}.png"
+        file_name = f"{chart}_{'_'.join(self.nom_source)}_{current_datetime}.png"
 
         image_path = os.path.join(save_path, file_name)
 
@@ -284,7 +281,7 @@ class SourceWidget(QWidget):
                 if chart_layout == "pair_frequency_chart":
                     self.pair_frequency_chart.setPixmap(pixmap)
                 if chart_layout == "triplet_frequency_chart":
-                    self.triplet_frequency_chart_frequency_chart.setPixmap(pixmap)
+                    self.triplet_frequency_chart.setPixmap(pixmap)
             except Exception as e:
                 print("erreur pendant l'ajout du graphique sur l'interface : ", e)
 
@@ -305,19 +302,17 @@ class SourceWidget(QWidget):
         data['Cluster'] = kmeans.fit_predict(data_normalized)
 
         # Histogramme des clusters
-        figure = plt.figure(figsize=(10, 8))
+        figure = plt.figure(figsize=(4, 3))
         sns.histplot(data=data, x='Cluster', kde=True)
         plt.title('Distribution des Clusters')
-        plt.show()
         self.add_figure_on_interface(figure, "kmeans_histplot_chart")
         hisplot_image_path = self.save_figure('kmeans_hisplot')
         plt.close(figure)
 
         # Pair plot des clusters
-        plt.figure(figsize=(10, 8))
+        plt.figure(figsize=(4, 3))
         sns.pairplot(data, hue='Cluster', palette='viridis')
         plt.title('Pair Plot des Clusters')
-        plt.show()
         self.add_figure_on_interface(figure, "kmeans_pairplot_chart")
         pairplot_image_path =  self.save_figure('kmeans_pairplot')
         plt.close(figure)
@@ -343,20 +338,18 @@ class SourceWidget(QWidget):
         data_clustering['Cluster'] = agglomerative_clustering.fit_predict(data_normalized)
 
         # Afficher le pairplot avec les clusters colorés
-        figure = plt.figure(figsize=(10, 8))
+        figure = plt.figure(figsize=(4, 3))
         sns.pairplot(data_clustering, hue='Cluster', palette='viridis')
         plt.suptitle("Pairplot avec Clusters (Clustering Hiérarchique Agglomératif)", y=1.02)
-        plt.show()
         self.add_figure_on_interface(figure, "hierarchic_pairplot_chart")
         hierachical_image_path = self.save_figure('hierarchical_pairplot')
         plt.close(figure)
 
         # Afficher la matrice de liaison
-        figure = plt.figure(figsize=(10, 8))
+        figure = plt.figure(figsize=(4, 3))
         linkage_matrix = linkage(data_normalized, method='ward')
         dendrogram(linkage_matrix)
         plt.title("Dendrogramme")
-        plt.show()
         self.add_figure_on_interface(figure, "hierarchic_dendogram_chart")
         dendogramme_image_path = self.save_figure('hierarchical_dendogramme')
         plt.close(figure)
@@ -370,10 +363,11 @@ class SourceWidget(QWidget):
 
         # Créer le scatter plot
         print("calculating the scatter plot")
-        figure = plt.figure(figsize=(10, 8))
-        plt.plot(data[x], data[y])
+        figure = plt.figure(figsize=(4, 3))
+        plt.scatter(data[x], data[y])
         plt.title(f'Scatter plot de {x} et {y}')
-        plt.show()
+        plt.xlabel(x)
+        plt.ylabel(y)
         self.add_figure_on_interface(figure, "scatter_plot_chart")
         image_path = self.save_figure('scatter plot')
         plt.close(figure)
@@ -386,11 +380,11 @@ class SourceWidget(QWidget):
         data_for_hist = [str(col1)+','+str(col2) for (col1, col2) in zip(data[x], data[y])]
 
         if self.is_histogram_relevant(data_for_hist):
-            figure = plt.figure(figsize=(10, 8))
+            figure = plt.figure(figsize=(4, 3))
             plt.hist(data_for_hist)
-
             plt.title(f'Frequence des paires ({x}, {y})')
-            plt.show()
+            plt.xlabel(f'({x}, {y})')
+            plt.ylabel("frequence")
             self.add_figure_on_interface(figure, "pair_frequency_chart")
             image_path = self.save_figure('pair frequency')
             plt.close(figure)
@@ -406,11 +400,11 @@ class SourceWidget(QWidget):
         data_for_hist = [str(col1)+','+str(col2) + ', '+str(col3) for (col1, col2, col3) in zip(data[x], data[y], data[z])]
 
         if self.is_histogram_relevant(data_for_hist):
-            figure = plt.figure(figsize=(10, 8))
+            figure = plt.figure(figsize=(4, 3))
             plt.hist(data_for_hist)
-
             plt.title(f'Frequence des triplets ({x}, {y}, {z})')
-            plt.show()
+            plt.xlabel(f'({x}, {y}, {z})')
+            plt.ylabel("frequence")
             self.add_figure_on_interface(figure, "triplet_frequency_chart")
             image_path = self.save_figure('triplet frequency')
             plt.close(figure)

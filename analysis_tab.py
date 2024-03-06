@@ -10,6 +10,7 @@ import pandas as pd
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
 
+from neo4j_connector import Neo4jConnector
 from source_widget import SourceWidget
 
 class AnalysisTab(QWidget):
@@ -48,7 +49,7 @@ class AnalysisTab(QWidget):
         self.source_tabs.clear()
         self.source_widgets = []
 
-        for source in self.sources:
+        for _, source in self.sources.iterrows():
             
             tab = QWidget()
             tab_layout = QVBoxLayout(tab)
@@ -59,8 +60,8 @@ class AnalysisTab(QWidget):
             self.source_widgets.append(source_widget)
 
             # Ajoutez vos fonctionnalités spécifiques pour chaque colonne ici
-
-            self.source_tabs.addTab(tab, source['name'])
+            nom_source = os.path.basename(source['chemin_source'])
+            self.source_tabs.addTab(tab, nom_source)
 
             # Utilisez le style CSS pour orienter le texte horizontalement
             self.source_tabs.setStyleSheet("QTabBar::tab {writing-mode: horizontal-tb }")
@@ -69,20 +70,11 @@ class AnalysisTab(QWidget):
 
     
     def get_sources(self):
-    # Utilisez cette fonction pour initialiser la liste de sources
-        s1 = 'data/DataCoSupplyChainDataset.csv'
-        c1 = [
-            'Category Id', 'Customer Id', 'Department Id', 'Order Customer Id', 'Order Id', 'Order Item Id',
-            'Order Item Product Price', 'Order Item Quantity', 'Product Card Id', 'Product Category Id'
-        ]
 
-        s2 = 'data/estat_isoc_eb_ics_en.csv'
-        c2 = []
+        connector = Neo4jConnector()
+        connector.connect()
+        source = connector.get_sources()
+        source_df = pd.DataFrame([dict(rec) for rec in source]) 
+        connector.close()
 
-        s3 = 'data/Supply chain logisitcs problem.xlsx'
-        c3 = [
-            'Order ID', 'TPT', 'Ship ahead day count', 'Ship Late Day count', 'Product ID', 'Unit quantity',
-            'Weight'
-        ]
-
-        return [{'path': s1, 'columns': c1, 'name':'S1'}, {'path': s2, 'columns': c2, 'name':'S2'}, {'path': s3, 'columns': c3, 'name':'S3'}]
+        return source_df
