@@ -8,8 +8,8 @@ class IntegrationTab(QWidget):
             super().__init__()
             self.layout = QVBoxLayout(self)
 
-            self.load_button = QPushButton("Integrer par nom de colonne")
-            self.load_button.clicked.connect(self.integrate_by_name)
+            self.load_button = QPushButton("Integrer les tables")
+            self.load_button.clicked.connect(self.integrate_tables)
             self.layout.addWidget(self.load_button)
 
             self.inetgrate_by_name_label = QLabel()
@@ -29,10 +29,10 @@ class IntegrationTab(QWidget):
             self.inetgrate_by_prof_label = QLabel()
             self.layout.addWidget(self.inetgrate_by_prof_label)
 
-    def integrate_by_name(self):
+    def integrate_tables(self):
         connector = Neo4jConnector()
         connector.connect()
-        total_integration = connector.integrate_by_name()
+        total_integration = connector.integrate_tables(self)
         self.inetgrate_by_name_label.setText(f"total paires pour nom : {total_integration} ")
         
     def integrate_by_correspondance(self):

@@ -43,18 +43,23 @@ class Neo4jConnector:
         password = "LogisticData"
         self._driver = GraphDatabase.driver(uri, auth=(user, password))
 
-    def integrate_by_name(self):
-        type_integration = "integration par nom"
+    def get_similar_columns(self):
+        # type_integration = "integration par nom"
+        print("get sim by names ...")
+        query = """
+            MATCH (s1:Source)-[:POSSEDE]->(t1:Table)-[:CONTIENT]->(c1:Colonne)-[:EFFECTUE]->(a1:Analyse)
+            MATCH (s2:Source)-[:POSSEDE]->(t2:Table)-[:CONTIENT]->(c2:Colonne)-[:EFFECTUE]->(a2:Analyse)
+            WHERE toLower(c1.nom) = toLower(c2.nom) AND s1 < s2
+
+            RETURN s1.chemin, t1.nom, s2.chemin, t2.nom, c1.com AS colonne_similaire
+        """
         with self._driver.session() as session:
                 # Begin a transaction
                 with session.begin_transaction() as tx:
-                    result = tx.run((self.sim_column_query), type_integration=type_integration)
+                    result = tx.run(query)
                     records = list(result)
-                    total = sum(record['total'] for record in records) if records else 0
-
-        print("integration par nom terminée")
-        print(f"Total de {total} paire(s) de clonnes intégrées")
-        return total
+                    #total = len(record['total'] for record in records) if records else 0
+        return records
                     
                     
     def store_in_db(self, file_name, file_path, results_df, sheet_name=None):
@@ -146,6 +151,43 @@ class Neo4jConnector:
                     tx.run(stocke_query, source_name=source, file_path=file_path, table_name=table, source_profilage=source, date_maj=datetime.now().strftime("%d/%m/%Y_%H:%M:%S"))
             self.make_joins()
 
+
+    def store_analysis(self, result_df, sheet_name=None):
+
+        with self._driver.session() as session:
+            # Begin a transaction
+            with session.begin_transaction() as tx:
+                print("start saving in Neo4j ...")
+
+
+                # scatter plot
+                # pair frequency plot
+                # triplet frequency plot
+                # Kmeans image_path, nombre_clusters, columns, data_clustering['Cluster']
+                # Hierarchical clustering image_path, nombre_clusters, columns, data_clustering['Cluster']
+                chemin_source = result_df['chemin source']
+                if sheet_name != None:
+                    table_name = sheet_name
+                else:
+                    table_name = chemin_source
+
+                all_results = result_df['resultats']
+                source_query = (
+                        "MERGE (s:Source {nom: $source_name, chemin: $file_path})-[:POSSEDE]->(t:Table{nom: $table})-[:Analyser]->(a:Analyses) "
+                        "SET "
+                        )
+                                    # Add dynamic SET clause based on resultats DataFrame
+                for resultats in all_results:
+                    for result in resultats:
+                        # Enclose both parameter name and value in backticks
+                        parameter_name = f"`{result[0]}`"
+                        parameter_value = result[1]
+                        source_query += f"a.{parameter_name} = '{parameter_value}', "
+
+                    # Remove the trailing comma
+                    source_query = source_query.rstrip(', ')
+                tx.run(source_query, source_name=chemin_source, file_path=chemin_source, table=table_name)
+
     def make_joins(self):
         column_query = """
             MATCH (s1:Source)-[:POSSEDE]->(t1:Table)-[:CONTIENT]->(c1:Colonne)
@@ -157,10 +199,25 @@ class Neo4jConnector:
         with self._driver.session() as session:
                 with session.begin_transaction() as tx:
                     (tx.run(column_query))
-                
 
-    def integrate_by_correspondance(self, parent):
+
+
+
+    def integrate_tables(self, parent):
+        similar_columns = self.get_similar_columns()
+        print(similar_columns)
+
+        corresponding_columns_df = self.get_correspond_columns(parent) 
+        corresponding_columns_df.head()
+
+        similar_columns_by_analysis = self.get_similar_col_by_analysis()
+        print(similar_columns_by_analysis)
+
+
+
+    def get_correspond_columns(self, parent):
         # Chemin vers votre fichier CSV
+        print("get corresp columns ...")
         options = QFileDialog.Options()
         options |= QFileDialog.DontUseNativeDialog
         file_path, _ = QFileDialog.getOpenFileName(parent, "Choisir un fichier", "", "Fichiers CSV (*.csv)", options=options)
@@ -174,15 +231,20 @@ class Neo4jConnector:
                     except UnicodeDecodeError:
                         df_correspond = pd.read_csv(file_path, encoding='ISO-8859-1')
                     
-                    for _, row in df_correspond.iterrows():
-                        source1 = row['source1']
-                        column1 = row['column1']
-                        source2 = row['source2']
-                        column2 = row['column2']
+                    # for _, row in df_correspond.iterrows():
+                    #     source1 = row['source1']
+                    #     column1 = row['column1']
+                    #     source2 = row['source2']
+                    #     column2 = row['column2']
 
-                    type_integration="integration par table de correspondance"
+                    # type_integration="integration par table de correspondance"
+                    return df_correspond
+            
+            except Exception as e:
+                # Gérer les erreurs lors du chargement du fichier
+                return(str(e))
 
-
+    def corres(self):
                     # Créer un lien entre la source et la colonne dans Neo4j
                     with self._driver.session() as session:
                         with session.begin_transaction() as tx:
@@ -213,11 +275,22 @@ class Neo4jConnector:
                     print(f"Total de {total} paire(s) de clonnes intégrées")
                     return total
 
-            except Exception as e:
-                # Gérer les erreurs lors du chargement du fichier
-                return(str(e))
-
     
+    def get_similar_col_by_analysis(self):
+        print("get sim analysis columns...")
+        with self._driver.session() as session:
+            with session.begin_transaction() as tx:
+                
+                query ="""
+                    MATCH (s1:Source)-[:POSSEDE]->(t1:Table)-[:CONTIENT]->(c1:Colonne)-[:EFFECTUE]->(a1:Analyse)
+                    MATCH (s2:Source)-[:POSSEDE]->(t2:Table)-[:CONTIENT]->(c2:Colonne)-[:EFFECTUE]->(a2:Analyse)
+                    WHERE a1 <> a2 AND a1.`Valeur la plus fréquente` = a2.`Valeur la plus fréquente` AND
+                                a1.`Valeurs distinctes` = a2.`Valeurs distinctes`  AND s1 <> s2
+                    RETURN s1.chemin, t1.nom, s2.chemin, t2.nom, c1.com AS colonne_similaire
+                            """
+                results = tx.run(query)
+
+                return list(results)
 
     def integrate_by_analysis_profiling(self):
         type_integration = "integration par Analyse des profils"
@@ -247,9 +320,7 @@ class Neo4jConnector:
                     #total = result.single()['total'] if result and result.single() else 0
 
                     records = list(result)
-                    total = sum(record['total'] for record in records) if records else 0
-
-                    
+                    total = sum(record['total'] for record in records) if records else 0            
 
         print("integration par Analyse profil terminée")
         print(f"Total de {total} paire(s) de clonnes intégrées")
