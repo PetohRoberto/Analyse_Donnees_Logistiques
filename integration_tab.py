@@ -22,7 +22,7 @@ class IntegrationTab(QWidget):
             self.layout.addWidget(self.sim_analyses)
             self.sim_analyses.stateChanged.connect(self.handle_operation_checkbox)
 
-            self.load_button = QPushButton("Analyser pour intégrer les tables")
+            self.load_button = QPushButton("Analyser pour et les tables")
             self.load_button.clicked.connect(self.integrate_tables)
             self.layout.addWidget(self.load_button)
 
