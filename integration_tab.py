@@ -1,5 +1,5 @@
 from PyQt5.QtWidgets import QLabel, QWidget, QVBoxLayout, QPushButton, QCheckBox
-
+from PyQt5.QtCore import Qt
 
 from neo4j_connector import Neo4jConnector
 
