@@ -8,7 +8,8 @@ class IntegrationTab(QWidget):
             super().__init__()
             self.layout = QVBoxLayout(self)
 
-            
+            bold_label = QLabel("<b>Choisir les similarités à utiliser</b>")
+            self.layout.addWidget(bold_label)
             self.sim_nom = QCheckBox("compter les nom similaires")
             self.layout.addWidget(self.sim_nom)
             self.sim_nom.stateChanged.connect(self.handle_operation_checkbox)
