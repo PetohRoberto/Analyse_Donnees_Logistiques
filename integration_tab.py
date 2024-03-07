@@ -53,6 +53,15 @@ class IntegrationTab(QWidget):
         result_texts = [result_text + f" {statut}" for result_text, statut in zip(result_texts, statuts)]
 
         self.integrate_tables_label.setText("\n\n".join(result_texts))
+
+
+    def handle_operation_checkbox(self, state):
+        sender = self.sender()
+        if state == Qt.Checked:
+            print(f"{sender.text()} sélectionné pour la source {self.nom_source}")
+        else:
+            print(f"{sender.text()} désélectionné pour la source {self.nom_source}")
+
         
 
     
