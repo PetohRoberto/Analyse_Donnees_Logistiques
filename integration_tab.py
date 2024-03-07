@@ -23,13 +23,14 @@ class IntegrationTab(QWidget):
 
         result_texts = []
         for i, row in total_paires.iterrows():
-            result_text = f"{row['total_pairs']} {row['count']}"
+            print(row['table_pair'])
+            result_text = f"{row['table_pair']} {row['count']}"
             result_texts.append(result_text)
 
         # Concaténer les statuts à chaque résultat
         result_texts = [result_text + f" {statut}" for result_text, statut in zip(result_texts, statuts)]
 
-        self.integrate_tables_label.setText("\n".join(result_texts))
+        self.integrate_tables_label.setText("\n\n".join(result_texts))
         
 
     

@@ -188,7 +188,7 @@ class Neo4jConnector:
 
         similar_columns_by_analysis = self.get_similar_col_by_analysis()
         sim_analysis_df = pd.DataFrame([dict(record) for record in similar_columns_by_analysis])
-        print(sim_analysis_df)
+        print("sim analysis df****** ", sim_analysis_df)
         sim_analysis_pairs = self.count_pairs(sim_analysis_df)
         total_results.append(sim_analysis_pairs)
 
@@ -210,7 +210,7 @@ class Neo4jConnector:
         statut = []
         total_pairs = self.analyse_for_integration(parent)
         for pair, count in zip(total_pairs['table_pair'], total_pairs['count']):
-            if count < 2:
+            if count < 3:
                 statut.append("pas intégré")
             else:
                 statut.append("intégré")
@@ -223,8 +223,9 @@ class Neo4jConnector:
                     WHERE (toLower(c1.nom) = toLower(c2.nom) AND s1 < s2) OR (a1 <> a2 AND a1.`Valeur la plus fréquente` = a2.`Valeur la plus fréquente` AND
                                 a1.`Valeurs distinctes` = a2.`Valeurs distinctes`  AND s1 <> s2)
 
-                    MERGE (t1)-[:INTEGRE]-(t2)
-                    MERGE (c1)-[:CORRESPOND]-(c2)
+                    WITH t1, c1, t2, c2
+                    MERGE (t1)-[:INTEGRE]->(t2)
+                    MERGE (c1)-[:CORRESPOND]->(c2)
                     """
 
                 correspond_df = self.corresp_df
@@ -237,7 +238,6 @@ class Neo4jConnector:
                     query_table_corr = """"
                         MATCH (s1:Source{nom: $source1})-[:POSSEDE]->(t1:Table{nom: $table1})-[:CONTIENT]->(c1:Colonne{nom: $colonne1})
                         MATCH (s2:Source{nom: $source2})-[:POSSEDE]->(t2:Table{nom : $table2})-[:CONTIENT]->(c2:Colonne{nom: $colonne2})
-
                         MERGE (t1)-[:INTEGRE]-(t2)
                         MERGE (c1)-[:CORRESPOND]-(c2)
                     """
@@ -246,7 +246,8 @@ class Neo4jConnector:
                     # Begin a transaction
                         with session.begin_transaction() as tx:
                             tx.run(query_name_analyse, source1=s1, source2=s2, table1=t1, table2=t2)
-                            tx.run(query_table_corr, source1=s1, source2=s2, table1=t1, table2=t2, colonne1=c1, colonne2=c2)
+                            print("integration")
+                            # tx.run(query_table_corr, source1=s1, source2=s2, table1=t1, table2=t2, colonne1=c1, colonne2=c2)
                             
 
         return (total_pairs, statut)
@@ -259,7 +260,7 @@ class Neo4jConnector:
             MATCH (s2:Source)-[:POSSEDE]->(t2:Table)-[:CONTIENT]->(c2:Colonne)-[:EFFECTUE]->(a2:Analyse)
             WHERE toLower(c1.nom) = toLower(c2.nom) AND s1 < s2
             
-            RETURN s1.chemin as source1, t1.nom as table1, s2.chemin as source2, t2.nom as table2, c1.com AS colonne_similaire
+            RETURN s1.nom as source1, t1.nom as table1, s2.nom as source2, t2.nom as table2, c1.com AS colonne_similaire
         """
         # source1', 'table1', 'table2', 'source2
         with self._driver.session() as session:
@@ -303,7 +304,7 @@ class Neo4jConnector:
                     MATCH (s2:Source)-[:POSSEDE]->(t2:Table)-[:CONTIENT]->(c2:Colonne)-[:EFFECTUE]->(a2:Analyse)
                     WHERE a1 <> a2 AND a1.`Valeur la plus fréquente` = a2.`Valeur la plus fréquente` AND
                                 a1.`Valeurs distinctes` = a2.`Valeurs distinctes`  AND s1 <> s2
-                    RETURN s1.chemin as source1, t1.nom as table1, s2.chemin as source2, t2.nom as table2, c1.com AS colonne_similaire
+                    RETURN s1.nom as source1, t1.nom as table1, s2.nom as source2, t2.nom as table2, c1.com AS colonne_similaire
                             """
                 results = tx.run(query)
 
