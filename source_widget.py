@@ -302,7 +302,7 @@ class SourceWidget(QWidget):
         data['Cluster'] = kmeans.fit_predict(data_normalized)
 
         # Histogramme des clusters
-        figure = plt.figure(figsize=(4, 3))
+        figure = plt.figure(figsize=(4, 5))
         sns.histplot(data=data, x='Cluster', kde=True)
         plt.title('Distribution des Clusters')
         self.add_figure_on_interface(figure, "kmeans_histplot_chart")
@@ -310,7 +310,7 @@ class SourceWidget(QWidget):
         plt.close(figure)
 
         # Pair plot des clusters
-        plt.figure(figsize=(4, 3))
+        plt.figure(figsize=(4, 5))
         sns.pairplot(data, hue='Cluster', palette='viridis')
         plt.title('Pair Plot des Clusters')
         self.add_figure_on_interface(figure, "kmeans_pairplot_chart")
@@ -338,7 +338,7 @@ class SourceWidget(QWidget):
         data_clustering['Cluster'] = agglomerative_clustering.fit_predict(data_normalized)
 
         # Afficher le pairplot avec les clusters colorés
-        figure = plt.figure(figsize=(4, 3))
+        figure = plt.figure(figsize=(4, 5))
         sns.pairplot(data_clustering, hue='Cluster', palette='viridis')
         plt.suptitle("Pairplot avec Clusters (Clustering Hiérarchique Agglomératif)", y=1.02)
         self.add_figure_on_interface(figure, "hierarchic_pairplot_chart")
@@ -346,7 +346,7 @@ class SourceWidget(QWidget):
         plt.close(figure)
 
         # Afficher la matrice de liaison
-        figure = plt.figure(figsize=(4, 3))
+        figure = plt.figure(figsize=(4, 5))
         linkage_matrix = linkage(data_normalized, method='ward')
         dendrogram(linkage_matrix)
         plt.title("Dendrogramme")
@@ -363,7 +363,7 @@ class SourceWidget(QWidget):
 
         # Créer le scatter plot
         print("calculating the scatter plot")
-        figure = plt.figure(figsize=(4, 3))
+        figure = plt.figure(figsize=(4, 5))
         plt.scatter(data[x], data[y])
         plt.title(f'Scatter plot de {x} et {y}')
         plt.xlabel(x)
@@ -380,7 +380,7 @@ class SourceWidget(QWidget):
         data_for_hist = [str(col1)+','+str(col2) for (col1, col2) in zip(data[x], data[y])]
 
         if self.is_histogram_relevant(data_for_hist):
-            figure = plt.figure(figsize=(4, 3))
+            figure = plt.figure(figsize=(4, 5))
             plt.hist(data_for_hist)
             plt.title(f'Frequence des paires ({x}, {y})')
             plt.xlabel(f'({x}, {y})')
@@ -402,7 +402,7 @@ class SourceWidget(QWidget):
         data_for_hist = [str(col1)+','+str(col2) + ', '+str(col3) for (col1, col2, col3) in zip(data[x], data[y], data[z])]
 
         if self.is_histogram_relevant(data_for_hist):
-            figure = plt.figure(figsize=(4, 3))
+            figure = plt.figure(figsize=(4, 5))
             plt.hist(data_for_hist)
             plt.title(f'Frequence des triplets ({x}, {y}, {z})')
             plt.xlabel(f'({x}, {y}, {z})')
