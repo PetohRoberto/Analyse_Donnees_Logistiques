@@ -8,13 +8,7 @@ class IntegrationTab(QWidget):
             super().__init__()
             self.layout = QVBoxLayout(self)
 
-            self.load_button = QPushButton("Analyser pour intégrer les tables")
-            self.load_button.clicked.connect(self.integrate_tables)
-            self.layout.addWidget(self.load_button)
-
-            self.integrate_tables_label = QLabel()
-            self.layout.addWidget(self.integrate_tables_label)
-
+            
             self.sim_nom = QCheckBox("compter les nom similaires")
             self.layout.addWidget(self.sim_nom)
             self.sim_nom.stateChanged.connect(self.handle_operation_checkbox)
@@ -27,10 +21,20 @@ class IntegrationTab(QWidget):
             self.layout.addWidget(self.sim_analyses)
             self.sim_analyses.stateChanged.connect(self.handle_operation_checkbox)
 
+            self.load_button = QPushButton("Analyser pour intégrer les tables")
+            self.load_button.clicked.connect(self.integrate_tables)
+            self.layout.addWidget(self.load_button)
+
+            self.integrate_tables_label = QLabel()
+            self.layout.addWidget(self.integrate_tables_label)
+
 
     def integrate_tables(self):
         connector = Neo4jConnector()
         connector.connect()
+        use_name_sim = True
+        use_corresp_sim = True
+        use_analyse_sim = True
 
         if not self.sim_nom.isChecked():
              use_name_sim = False
@@ -58,9 +62,9 @@ class IntegrationTab(QWidget):
     def handle_operation_checkbox(self, state):
         sender = self.sender()
         if state == Qt.Checked:
-            print(f"{sender.text()} sélectionné pour la source {self.nom_source}")
+            print(f"{sender.text()} sélectionné")
         else:
-            print(f"{sender.text()} désélectionné pour la source {self.nom_source}")
+            print(f"{sender.text()} désélectionné")
 
         
 
