@@ -169,28 +169,33 @@ class Neo4jConnector:
             return None
 
 
-    def analyse_for_integration(self, parent):
+    def analyse_for_integration(self, parent, use_name_sim, use_corresp_sim, use_analyse_sim):
         total_results = []
-        similar_columns = self.get_similar_columns()
-        similar_name_df = pd.DataFrame([dict(record) for record in similar_columns])
-        sim_name_pairs = self.count_pairs(similar_name_df) 
-        total_results.append(sim_name_pairs)  
 
+        if use_name_sim:
+            similar_columns = self.get_similar_columns()
+            similar_name_df = pd.DataFrame([dict(record) for record in similar_columns])
+            sim_name_pairs = self.count_pairs(similar_name_df) 
+            total_results.append(sim_name_pairs)  
 
-        corresponding_columns_df = self.get_correspond_columns(parent) 
-        if corresponding_columns_df is not None:
-            self.corresp_df = corresponding_columns_df
-            corresp_pairs = self.count_pairs(corresponding_columns_df)
-            total_results.append(corresp_pairs)
-        else:
-             print("table de correspondace nulle")
+        if use_corresp_sim:
+            corresponding_columns_df = self.get_correspond_columns(parent) 
+            if corresponding_columns_df is not None:
+                self.corresp_df = corresponding_columns_df
+                corresp_pairs = self.count_pairs(corresponding_columns_df)
+                total_results.append(corresp_pairs)
+            else:
+                print("table de correspondace nulle")
 
+        if use_analyse_sim:
+            similar_columns_by_analysis = self.get_similar_col_by_analysis()
 
-        similar_columns_by_analysis = self.get_similar_col_by_analysis()
-        sim_analysis_df = pd.DataFrame([dict(record) for record in similar_columns_by_analysis])
-        print("sim analysis df****** ", sim_analysis_df)
-        sim_analysis_pairs = self.count_pairs(sim_analysis_df)
-        total_results.append(sim_analysis_pairs)
+            if not similar_columns_by_analysis :
+                print("No match per analysis found")
+            else : 
+                sim_analysis_df = pd.DataFrame([dict(record) for record in similar_columns_by_analysis])
+                sim_analysis_pairs = self.count_pairs(sim_analysis_df)
+                total_results.append(sim_analysis_pairs)
 
 
         # Concaténer les résultats de chaque DataFrame
@@ -206,9 +211,9 @@ class Neo4jConnector:
     def compare_tuple(row, mon_tuple):
         return all(elem in row.values for elem in mon_tuple)
     
-    def integrate_tables(self, parent):
+    def integrate_tables(self, parent, use_name_sim=True, use_corresp_sim=True, use_analyse_sim=True):
         statut = []
-        total_pairs = self.analyse_for_integration(parent)
+        total_pairs = self.analyse_for_integration(parent, use_name_sim, use_corresp_sim, use_analyse_sim)
         for pair, count in zip(total_pairs['table_pair'], total_pairs['count']):
             if count < 3:
                 statut.append("pas intégré")

@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QLabel, QWidget, QVBoxLayout, QPushButton
+from PyQt5.QtWidgets import QLabel, QWidget, QVBoxLayout, QPushButton, QCheckBox
 
 
 from neo4j_connector import Neo4jConnector
@@ -15,11 +15,33 @@ class IntegrationTab(QWidget):
             self.integrate_tables_label = QLabel()
             self.layout.addWidget(self.integrate_tables_label)
 
+            self.sim_nom = QCheckBox("compter les nom similaires")
+            self.layout.addWidget(self.sim_nom)
+            self.sim_nom.stateChanged.connect(self.handle_operation_checkbox)
+
+            self.sim_corresp = QCheckBox("compter les correspondances")
+            self.layout.addWidget(self.sim_corresp)
+            self.sim_corresp.stateChanged.connect(self.handle_operation_checkbox)
+
+            self.sim_analyses = QCheckBox("compter les analyses similaires")
+            self.layout.addWidget(self.sim_analyses)
+            self.sim_analyses.stateChanged.connect(self.handle_operation_checkbox)
+
 
     def integrate_tables(self):
         connector = Neo4jConnector()
         connector.connect()
-        total_paires, statuts = connector.integrate_tables(self)
+
+        if not self.sim_nom.isChecked():
+             use_name_sim = False
+
+        if not self.sim_corresp.isChecked():
+             use_corresp_sim = False
+
+        if not self.sim_analyses.isChecked():
+             use_analyse_sim = False
+
+        total_paires, statuts = connector.integrate_tables(self, use_name_sim, use_corresp_sim, use_analyse_sim)
 
         result_texts = []
         for i, row in total_paires.iterrows():
